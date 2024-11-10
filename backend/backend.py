@@ -16,10 +16,10 @@ def workDescriptionsSummarizer(work_descriptions):
 
 def worklogAndTADetails(ta_id, course_id, password, output_file):
     conn = mysql.connector.connect(
-        host='localhost',
-        user='root',
-        password=f'{password}',
-        database='TAPortal'
+        host = 'localhost',
+        user = 'root',
+        password = f'{password}',
+        database = 'TAPortal'
     )
     cursor = conn.cursor()
 
