@@ -1,3 +1,5 @@
 misc.py
 report.txt
 report.pdf
+backend/utils
+backend/.env
