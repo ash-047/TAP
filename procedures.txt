@@ -1,0 +1,255 @@
+DELIMITER //
+
+-- 1. Report Generation Procedure
+CREATE PROCEDURE GenerateWorkReport(
+    IN p_TA_ID VARCHAR(20),
+    IN p_Course_ID VARCHAR(20)
+)
+BEGIN
+    -- Check if TA exists
+    IF NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = p_TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid TA_ID: TA does not exist';
+    END IF;
+    
+    -- Check if Course exists
+    IF NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = p_Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid Course_ID: Course does not exist';
+    END IF;
+    
+    -- Generate report
+    SELECT 
+        Start_Timestamp,
+        Work_Description,
+        End_Timestamp
+    FROM Worklog
+    WHERE TA_ID = p_TA_ID 
+    AND Course_ID = p_Course_ID
+    ORDER BY Start_Timestamp DESC;
+END//
+
+-- 2. Approve TA Procedure
+CREATE PROCEDURE ApproveTA(
+    IN p_SRN VARCHAR(20),
+    IN p_Teacher_ID VARCHAR(20),
+    IN p_Course_ID VARCHAR(20)
+)
+BEGIN
+    DECLARE new_TA_ID VARCHAR(20);
+    
+    -- Start transaction
+    START TRANSACTION;
+    
+    -- Check if Student exists
+    IF NOT EXISTS (SELECT 1 FROM Student WHERE SRN = p_SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid SRN: Student does not exist';
+    END IF;
+    
+    -- Check if Teacher exists
+    IF NOT EXISTS (SELECT 1 FROM Teacher WHERE Teacher_ID = p_Teacher_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid Teacher_ID: Teacher does not exist';
+    END IF;
+    
+    -- Check if Course exists
+    IF NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = p_Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid Course_ID: Course does not exist';
+    END IF;
+    
+    -- Check if student is already a TA for this course
+    IF EXISTS (SELECT 1 FROM TA WHERE SRN = p_SRN AND Course_ID = p_Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Student is already a TA for this course';
+    END IF;
+    
+    -- Generate new TA_ID using SRN[4:]+_+Course_ID[3:]
+    SET new_TA_ID = CONCAT(
+        SUBSTRING(p_SRN, 4), 
+        '_', 
+        SUBSTRING(p_Course_ID, 3)
+    );
+    
+    -- Insert into TA table
+    INSERT INTO TA (TA_ID, SRN, Course_ID) 
+    VALUES (new_TA_ID, p_SRN, p_Course_ID);
+    
+    -- Insert into Approval table
+    INSERT INTO Approval (TA_ID, Teacher_ID)
+    VALUES (new_TA_ID, p_Teacher_ID);
+    
+    -- Commit transaction
+    COMMIT;
+    
+    -- Return the new TA_ID
+    SELECT new_TA_ID AS 'New TA ID';
+    
+END//
+
+-- 3. Edit Work Log Procedure
+CREATE PROCEDURE EditWorkLog(
+    IN p_TA_ID VARCHAR(20),
+    IN p_Course_ID VARCHAR(20),
+    IN p_Start_Timestamp DATETIME,
+    IN p_Work_Description TEXT,
+    IN p_End_Timestamp DATETIME
+)
+BEGIN
+    -- Check if work log exists
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM Worklog 
+        WHERE TA_ID = p_TA_ID 
+        AND Course_ID = p_Course_ID
+        AND Start_Timestamp = p_Start_Timestamp
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Work log entry does not exist';
+    END IF;
+    
+    -- Validate timestamps
+    IF p_Start_Timestamp > p_End_Timestamp THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Start timestamp must be before end timestamp';
+    END IF;
+    
+    IF EXISTS (
+        SELECT 1
+        FROM Worklog
+        WHERE TA_ID = p_TA_ID
+        AND Start_Timestamp != p_Start_Timestamp  -- Exclude current record
+        AND Start_Timestamp = p_Start_Timestamp
+        AND End_Timestamp = p_End_Timestamp
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A work log with identical start and end timestamps already exists';
+    END IF;
+    
+    -- Update work log
+    UPDATE Worklog
+    SET 
+        Work_Description = p_Work_Description,
+        End_Timestamp = p_End_Timestamp,
+        Start_Timestamp = p_Start_Timestamp
+    WHERE 
+        TA_ID = p_TA_ID 
+        AND Course_ID = p_Course_ID;
+END//
+
+-- 4. Add Work Log Procedure
+CREATE PROCEDURE AddWorkLog(
+    IN p_TA_ID VARCHAR(20),
+    IN p_Course_ID VARCHAR(20),
+    IN p_Start_Timestamp DATETIME,
+    IN p_Work_Description TEXT,
+    IN p_End_Timestamp DATETIME
+)
+BEGIN
+    -- Check if all required fields are provided
+    IF p_Work_Description IS NULL OR p_Start_Timestamp IS NULL OR p_End_Timestamp IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'All fields (Work Description, Start Timestamp, End Timestamp) must be filled';
+    END IF;
+    
+    -- Check if TA exists
+    IF NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = p_TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid TA_ID: TA does not exist';
+    END IF;
+    
+    -- Check if Course exists
+    IF NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = p_Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid Course_ID: Course does not exist';
+    END IF;
+    
+    -- Validate timestamps
+    IF p_Start_Timestamp > p_End_Timestamp THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Start timestamp must be before end timestamp';
+    END IF;
+    
+    IF EXISTS (
+        SELECT 1
+        FROM Worklog
+        WHERE TA_ID = p_TA_ID
+        AND Start_Timestamp != p_Start_Timestamp  -- Exclude current record
+        AND Start_Timestamp = p_Start_Timestamp
+        AND End_Timestamp = p_End_Timestamp
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A work log with identical start and end timestamps already exists';
+    END IF;    
+
+    -- Insert new work log
+    INSERT INTO Worklog (
+        TA_ID,
+        Course_ID,
+        Start_Timestamp,
+        Work_Description,
+        End_Timestamp
+    ) VALUES (
+        p_TA_ID,
+        p_Course_ID,
+        p_Start_Timestamp,
+        p_Work_Description,
+        p_End_Timestamp
+    );
+END//
+
+-- 5. Procedure to validate sign-in credentials
+CREATE PROCEDURE ValidateSignIn(
+    IN p_SRN VARCHAR(20),
+    IN p_Password VARCHAR(255),
+    OUT p_IsValid BOOLEAN
+)
+BEGIN
+    -- Check if credentials match
+    SELECT EXISTS (
+        SELECT 1 
+        FROM SignInDetails 
+        WHERE SRN = p_SRN 
+        AND Password = p_Password
+    ) INTO p_IsValid;
+END//
+
+-- 6. Procedure to assign a TA to a class
+CREATE PROCEDURE AssignTAToClass(
+    IN p_TA_ID VARCHAR(20),
+    IN p_Class_ID VARCHAR(20)
+)
+BEGIN
+    -- Check if TA exists
+    IF NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = p_TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid TA_ID: TA does not exist';
+    END IF;
+    
+    -- Check if Class exists
+    IF NOT EXISTS (SELECT 1 FROM Classes WHERE Class_ID = p_Class_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid Class_ID: Class does not exist';
+    END IF;
+    
+    -- Check if TA is already assigned to this class
+    IF EXISTS (
+        SELECT 1 
+        FROM Assigned 
+        WHERE TA_ID = p_TA_ID 
+        AND Class_ID = p_Class_ID
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'TA is already assigned to this class';
+    END IF;
+    
+    -- Insert new assignment
+    INSERT INTO Assigned (TA_ID, Class_ID)
+    VALUES (p_TA_ID, p_Class_ID);
+    
+    -- Return success message
+    SELECT 'TA successfully assigned to class' AS Message;
+END//
+
+DELIMITER ;

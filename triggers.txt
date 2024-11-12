@@ -1,0 +1,352 @@
+Insert
+-- Triggers for Assigned table (Class_ID, TA_ID as FK)
+DELIMITER //
+
+-- Before Insert trigger for Assigned
+CREATE TRIGGER before_assigned_insert
+BEFORE INSERT ON Assigned
+FOR EACH ROW
+BEGIN
+    -- Check if Class_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Class WHERE Class_ID = NEW.Class_ID) THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Foreign key constraint: Class_ID does not exist in Class table';
+    END IF;
+    
+    -- Check if TA_ID exists
+    IF NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: TA_ID does not exist in TA table';
+    END IF;
+END;//
+
+CREATE TRIGGER before_worklog_insert
+BEFORE INSERT ON Worklog
+FOR EACH ROW
+BEGIN
+    -- Check if TA_ID exists
+    IF NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: TA_ID does not exist in TA table';
+    END IF;
+    
+    -- Check if Course_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = NEW.Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Course_ID does not exist in Courses table';
+    END IF;
+    
+    -- Check if the TA has already logged work with the same start and end timestamps
+    IF EXISTS (
+        SELECT 1
+        FROM Worklog
+        WHERE TA_ID = NEW.TA_ID
+        AND Start_Timestamp = NEW.Start_Timestamp
+        AND End_Timestamp = NEW.End_Timestamp
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'TA has already logged work with the same start and end timestamps';
+    END IF;
+    
+    -- Validate timestamps
+    IF NEW.Start_Timestamp > NEW.End_Timestamp THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid timestamps: Start time must be before End time';
+    END IF;
+END;//
+
+-- Triggers for Approval table (TA_ID, Teacher_ID as FK)
+CREATE TRIGGER before_approval_insert
+BEFORE INSERT ON Approval
+FOR EACH ROW
+BEGIN
+    -- Check if TA_ID exists
+    IF NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: TA_ID does not exist in TA table';
+    END IF;
+    
+    -- Check if Teacher_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Teacher WHERE Teacher_ID = NEW.Teacher_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Teacher_ID does not exist in Teacher table';
+    END IF;
+END;//
+
+-- Triggers for Belongs table (Class_ID, SRN as FK)
+CREATE TRIGGER before_belongs_insert
+BEFORE INSERT ON Belongs
+FOR EACH ROW
+BEGIN
+    -- Check if Class_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Class WHERE Class_ID = NEW.Class_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Class_ID does not exist in Class table';
+    END IF;
+    
+    -- Check if SRN exists
+    IF NOT EXISTS (SELECT 1 FROM Student WHERE SRN = NEW.SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: SRN does not exist in Student table';
+    END IF;
+END;//
+
+-- Triggers for Opts table (SRN, Course_ID as FK)
+CREATE TRIGGER before_opts_insert
+BEFORE INSERT ON Opts
+FOR EACH ROW
+BEGIN
+    -- Check if SRN exists
+    IF NOT EXISTS (SELECT 1 FROM Student WHERE SRN = NEW.SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: SRN does not exist in Student table';
+    END IF;
+    
+    -- Check if Course_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = NEW.Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Course_ID does not exist in Courses table';
+    END IF;
+END;//
+
+-- Triggers for Teaches table (Teacher_ID, Course_ID, Class_ID as FK)
+CREATE TRIGGER before_teaches_insert
+BEFORE INSERT ON Teaches
+FOR EACH ROW
+BEGIN
+    -- Check if Teacher_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Teacher WHERE Teacher_ID = NEW.Teacher_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Teacher_ID does not exist in Teacher table';
+    END IF;
+    
+    -- Check if Course_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = NEW.Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Course_ID does not exist in Courses table';
+    END IF;
+    
+    -- Check if Class_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Class WHERE Class_ID = NEW.Class_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Class_ID does not exist in Class table';
+    END IF;
+END;//
+
+-- Triggers for Request table (SRN, Teacher_ID, Course_ID as FK)
+CREATE TRIGGER before_request_insert
+BEFORE INSERT ON Request
+FOR EACH ROW
+BEGIN
+    -- Check if SRN exists
+    IF NOT EXISTS (SELECT 1 FROM Student WHERE SRN = NEW.SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: SRN does not exist in Student table';
+    END IF;
+    
+    -- Check if Course_ID exists
+    IF NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = NEW.Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: Course_ID does not exist in Courses table';
+    END IF;
+END;//
+
+-- Triggers for TA table (SRN as FK)
+CREATE TRIGGER before_ta_insert
+BEFORE INSERT ON TA
+FOR EACH ROW
+BEGIN
+    -- Check if SRN exists
+    IF NOT EXISTS (SELECT 1 FROM Student WHERE SRN = NEW.SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: SRN does not exist in Student table';
+    END IF;
+
+    -- Validate TA_ID format based on the new pattern
+    IF NEW.TA_ID NOT REGEXP '{1/2}{UG/PG}{2[0-9]}{[A-Z][A-Z]}{[0-9]*3}_{2[0-9]}{[A-Z][A-Z]}{[0-9*]3}{A/B}{A/B}{1/2/3/4}' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid TA_ID format';
+    END IF;
+
+    -- Ensure TA_ID is unique for each student
+    IF EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A student has already been assigned this TA_ID';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM TA WHERE SRN = NEW.SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A TA_ID has already been assigned to this student';
+    END IF;
+END;
+
+-- Triggers for TA_Bank_Details table (TA_ID as FK)
+CREATE TRIGGER before_ta_bank_details_insert
+BEFORE INSERT ON TABankDetails
+FOR EACH ROW
+BEGIN
+    -- Check if TA_ID exists
+    IF NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: TA_ID does not exist in TA table';
+    END IF;
+
+    IF NEW.IFSCCode NOT REGEXP '^[A-Z]40+([A-Z]/[0-9])6$' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'IFSCCode does not match the required pattern';
+    END IF;
+END;//
+
+DELIMITER ;
+
+
+Update
+
+-- Additional ON UPDATE triggers for Worklog, TA, Assigned, and TA_Bank_Details
+DELIMITER //
+
+-- ON UPDATE trigger for Worklog
+CREATE TRIGGER before_worklog_update
+BEFORE UPDATE ON Worklog
+FOR EACH ROW
+BEGIN
+    -- Check if TA_ID exists
+    IF NEW.TA_ID != OLD.TA_ID AND 
+       NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: New TA_ID does not exist in TA table';
+    END IF;
+    
+    -- Check if Course_ID exists
+    IF NEW.Course_ID != OLD.Course_ID AND 
+       NOT EXISTS (SELECT 1 FROM Courses WHERE Course_ID = NEW.Course_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: New Course_ID does not exist in Courses table';
+    END IF;
+    
+    -- Check if the TA has already logged work with the same start and end timestamps
+    IF EXISTS (
+        SELECT 1
+        FROM Worklog
+        WHERE TA_ID = NEW.TA_ID
+        AND Start_Timestamp = NEW.Start_Timestamp
+        AND End_Timestamp = NEW.End_Timestamp
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'TA has already logged work with the same start and end timestamps';
+    END IF;
+    
+    -- Validate timestamps
+    IF NEW.Start_Timestamp > NEW.End_Timestamp THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid timestamps: Start time must be before End time';
+    END IF;
+END;//
+
+-- Triggers for TA table (SRN as FK)
+CREATE TRIGGER before_ta_update
+BEFORE UPDATE ON TA
+FOR EACH ROW
+BEGIN
+    -- Check if SRN exists
+    IF NOT EXISTS (SELECT 1 FROM Student WHERE SRN = NEW.SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: SRN does not exist in Student table';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A student has already been assigned this TA_ID';
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM TA WHERE SRN = NEW.SRN) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A TA_ID has already been assigned this student';
+    END IF;
+END;//
+
+-- ON UPDATE trigger for Assigned
+CREATE TRIGGER before_assigned_update
+BEFORE UPDATE ON Assigned
+FOR EACH ROW
+BEGIN
+    -- Check if new Class_ID exists
+    IF NEW.Class_ID != OLD.Class_ID AND 
+       NOT EXISTS (SELECT 1 FROM Class WHERE Class_ID = NEW.Class_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: New Class_ID does not exist in Class table';
+    END IF;
+    
+    -- Check if new TA_ID exists
+    IF NEW.TA_ID != OLD.TA_ID AND 
+       NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: New TA_ID does not exist in TA table';
+    END IF;
+    
+    -- Check if TA is already assigned to this class
+    IF NEW.Class_ID != OLD.Class_ID OR NEW.TA_ID != OLD.TA_ID THEN
+        IF EXISTS (
+            SELECT 1 
+            FROM Assigned 
+            WHERE Class_ID = NEW.Class_ID 
+            AND TA_ID = NEW.TA_ID
+            AND (OLD.Class_ID != NEW.Class_ID OR OLD.TA_ID != NEW.TA_ID)
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'This TA is already assigned to this class';
+        END IF;
+    END IF;
+END;//
+
+-- ON UPDATE trigger for TA_Bank_Details
+CREATE TRIGGER before_ta_bank_details_update
+BEFORE UPDATE ON TA_Bank_Details
+FOR EACH ROW
+BEGIN
+    -- Check if TA_ID exists
+    IF NEW.TA_ID != OLD.TA_ID AND 
+       NOT EXISTS (SELECT 1 FROM TA WHERE TA_ID = NEW.TA_ID) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Foreign key constraint: New TA_ID does not exist in TA table';
+    END IF;
+    
+    -- Validate IFSC_Code format
+    IF NEW.IFSC_Code REGEXP '^[A-Z0-9]{11}$' = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid IFSC_Code format. Must be 11 alphanumeric characters';
+    END IF;
+
+    IF NEW.IFSC_Code NOT REGEXP '^[A-Z]40+([A-Z]/[0-9])6$' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'IFSC_Code does not match the required pattern';
+    END IF;
+END;//
+
+DELIMITER ;
+
+
+Delete
+
+-- ON DELETE triggers for TA 
+DELIMITER //
+
+-- ON DELETE trigger for cascading deletes from TA table
+CREATE TRIGGER before_ta_delete
+BEFORE DELETE ON TA
+FOR EACH ROW
+BEGIN
+    -- Delete related records in Worklog
+    DELETE FROM Worklog WHERE TA_ID = OLD.TA_ID;
+    
+    -- Delete related records in Assigned
+    DELETE FROM Assigned WHERE TA_ID = OLD.TA_ID;
+    
+    -- Delete related records in Approval
+    DELETE FROM Approval WHERE TA_ID = OLD.TA_ID;
+    
+    -- Delete related records in TA_Bank_Details
+    DELETE FROM TA_Bank_Details WHERE TA_ID = OLD.TA_ID;
+END;//
+
+DELIMITER ;
