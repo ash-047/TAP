@@ -8,6 +8,7 @@ from fpdf import FPDF
 import ollama
 from streamlit_option_menu import option_menu
 from dotenv import load_dotenv
+import time
 
 if 'user_id' not in st.session_state:
     st.session_state.user_id = None
@@ -156,11 +157,12 @@ def approve_student(srn, course_id, teacher_id):
         send_approval_notification(srn, course_id)
 
         signUpCheck = """
-            IF NOT EXISTS(
-            SELECT 1 
-            FROM sign_in 
-            WHERE Username = %s)"""
-        cursor.execute(signUpCheck, (new_ta_id))
+            SELECT 
+                CASE 
+                    WHEN EXISTS (SELECT 1 FROM Sign_In WHERE Username = %s) THEN 0
+                    ELSE 1
+                END AS UserExists;"""
+        cursor.execute(signUpCheck, (new_ta_id,))
         result = cursor.fetchone()
 
         if result[0] == 1:
@@ -170,6 +172,9 @@ def approve_student(srn, course_id, teacher_id):
             cursor.execute(signUpQuery, (new_ta_id, "pass"))
         conn.commit()
         cursor.close()
+        
+        time.sleep(2)
+        st.rerun()
     except Exception as e:
         st.error(f"Error approving TA: {str(e)}")
 
@@ -186,6 +191,9 @@ def send_rejection_notification(srn, course_id):
         
         conn.commit()
         cursor.close()
+
+        time.sleep(2)
+        st.rerun()
     except Exception as e:
         st.error(f"Error sending notification: {str(e)}")
 
@@ -722,9 +730,10 @@ def admin_dashboard():
                                 
                                 conn.commit()
                                 cursor.close()
-                                st.rerun()
                                 st.success("TA removed successfully!")
                                 st.session_state.show_remove_ta_form = False
+                                time.sleep(2)
+                                st.rerun()
                             except Exception as e:
                                 st.error(f"Error removing TA: {str(e)}")
             else:
