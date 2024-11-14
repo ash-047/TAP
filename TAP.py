@@ -117,7 +117,6 @@ def worklogAndTADetails(ta_id, course_id, output_file):
 
 def generate_report(ta_id, course_id):
     with tempfile.TemporaryDirectory() as temp_dir:
-        print(temp_dir)
         output_file = os.path.join(temp_dir, f"report_{ta_id}_{course_id}")
         pdf_path = worklogAndTADetails(ta_id, course_id, output_file)
         
@@ -205,6 +204,22 @@ def reject_student(srn, course_id):
     except Exception as e:
         st.error(f"Error rejecting TA request: {str(e)}")
 
+def send_removal_notification(srn):
+    try:
+        conn = get_database_connection()
+        cursor = conn.cursor()
+        
+        notification_msg = f"You have been removed as a TA!! If you feel this was a mistake please contact the admin!"
+        insert_notification = """
+            INSERT INTO Notifications (SRN, Message)
+            VALUES (%s, %s);"""
+        cursor.execute(insert_notification, (srn, notification_msg))
+        
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        st.error(f"Error sending notification: {str(e)}")
+
 def login(username, password):
     conn = get_database_connection()
     cursor = conn.cursor()
@@ -280,10 +295,10 @@ def student_dashboard():
                 with col1:
                     st.info(notification[1])
                 with col2:
-                    if st.button("✕", key=f"dismiss_{notification[0]}"):
+                    if st.button("✕", key=f"dismiss_{notification[1]}"):
                         cursor = conn.cursor()
-                        update_query = "UPDATE Notifications SET `Read` = 1 WHERE SRN = %s;"
-                        cursor.execute(update_query, (notification[0],))
+                        update_query = "UPDATE Notifications SET `Read` = 1 WHERE SRN = %s AND Message = %s;"
+                        cursor.execute(update_query, (notification[0], notification[1]))
                         conn.commit()
                         cursor.close()
                         st.rerun()
@@ -480,6 +495,26 @@ def ta_dashboard():
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Error updating bank details: {str(e)}")
+        else:
+            st.subheader("Add Bank Details")
+            with st.form("add_bank_details_form"):
+                bank_name = st.text_input("Bank Name")
+                account_no = st.text_input("Account Number")
+                ifsc_code = st.text_input("IFSC Code")
+                submitted = st.form_submit_button("Add Bank Details")
+                
+                if submitted:
+                    if not bank_name or not account_no or not ifsc_code:
+                        st.error("Please fill in all required fields (Bank Name, Account Number, and IFSC Code)")
+                    else:
+                        try:
+                            bankInsertQuery = """CALL AddBankDetails(%s, %s, %s, %s);"""
+                            cursor.execute(bankInsertQuery, (st.session_state.user_id, bank_name, account_no, ifsc_code))
+                            conn.commit()
+                            st.success("Bank details added successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error adding bank details: {str(e)}")
 
     elif choice == "Assigned Classes":
         st.subheader("Assigned Classes")
@@ -603,8 +638,8 @@ def admin_dashboard():
 
         st.header("Delete TA Assignment")
         with st.form("delete_ta_form"):
-            class_id = st.text_input("Class ID")
             ta_id = st.text_input("TA ID")
+            class_id = st.text_input("Class ID")
             submitted = st.form_submit_button("Delete TA Assignment")
             
             if submitted:
@@ -669,15 +704,27 @@ def admin_dashboard():
                             try:
                                 conn = get_database_connection()
                                 cursor = conn.cursor()
+
+                                checkQuery = """
+                                    SELECT COUNT(*) 
+                                    FROM Approval 
+                                    WHERE TA_ID = %s AND Teacher_ID = %s;
+                                    """
+                                cursor.execute(checkQuery, (ta_id, st.session_state.user_id))
+                                result = cursor.fetchone()
+                                if result[0] == 0:
+                                    st.error("TA is not under your supervision.")
+                                    return 
                                 
                                 remove_query = """CALL DeleteTA(%s, %s);"""
                                 cursor.execute(remove_query, (ta_id, srn))
+                                send_removal_notification(srn)
                                 
                                 conn.commit()
                                 cursor.close()
+                                st.rerun()
                                 st.success("TA removed successfully!")
                                 st.session_state.show_remove_ta_form = False
-                                st.rerun()
                             except Exception as e:
                                 st.error(f"Error removing TA: {str(e)}")
             else:
