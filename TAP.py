@@ -648,33 +648,42 @@ def admin_dashboard():
                     },
                     hide_index=True
                 )
+
+                if 'show_remove_ta_form' not in st.session_state:
+                    st.session_state.show_remove_ta_form = False
+
+                st.subheader("Remove TAs")
+                if st.button("Remove TAs"):
+                    st.session_state.show_remove_ta_form = not st.session_state.show_remove_ta_form
+
+                if st.session_state.show_remove_ta_form:
+                    with st.form("remove_ta_form"):
+                        ta_id = st.text_input("TA ID")
+                        srn = st.text_input("SRN")
+                        submitted = st.form_submit_button("Remove TA")
+                        
+                        if submitted:
+                            if not ta_id or not srn:
+                                st.error("Please fill in both the TA ID and SRN fields")
+                                return
+                            try:
+                                conn = get_database_connection()
+                                cursor = conn.cursor()
+                                
+                                remove_query = """CALL DeleteTA(%s, %s);"""
+                                cursor.execute(remove_query, (ta_id, srn))
+                                
+                                conn.commit()
+                                cursor.close()
+                                st.success("TA removed successfully!")
+                                st.session_state.show_remove_ta_form = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error removing TA: {str(e)}")
             else:
                 st.info("No TAs found.")
         except Exception as e:
             st.error(f"Error fetching TA details: {str(e)}")
-
-        st.subheader("Remove TAs")
-        with st.form("remove_ta_form"):
-            ta_id = st.text_input("TA ID")
-            srn = st.text_input("SRN")
-            submitted = st.form_submit_button("Remove TA")
-            
-            if submitted:
-                if not ta_id or srn:
-                    st.error("Please fill in both the TA ID and SRN fields")
-                    return
-                try:
-                    conn = get_database_connection()
-                    cursor = conn.cursor()
-                    
-                    remove_query = """CALL DeleteTA(%s, %s);"""
-                    cursor.execute(remove_query, (ta_id, srn))
-                    
-                    conn.commit()
-                    cursor.close()
-                    st.success("TA removed successfully!")
-                except Exception as e:
-                    st.error(f"Error removing TA: {str(e)}")
 
 def main():
     st.set_page_config(page_title="TA Portal", layout="wide")
