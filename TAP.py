@@ -264,8 +264,32 @@ def student_dashboard():
     if choice == "TA Request":
         st.subheader("Request to be a TA")
         with st.form("request_form"):
-            course_id = st.text_input("Course ID")
-            teacher_id = st.text_input("Teacher ID")
+            try:
+                conn = get_database_connection()
+                cursor = conn.cursor()
+                
+                courses_query = "SELECT Course_ID, Course_Name FROM Courses;"
+                cursor.execute(courses_query)
+                courses = cursor.fetchall()
+                cursor.close()
+                
+                course_options = {course[0]: course[1] for course in courses}
+                course_id = st.selectbox("Course", options=list(course_options.keys()), format_func=lambda x: course_options[x])
+            except Exception as e:
+                st.error(f"Error fetching courses: {str(e)}")
+            try:
+                conn = get_database_connection()
+                cursor = conn.cursor()
+                
+                teachers_query = "SELECT Teacher_ID, Teacher_Name FROM Teacher;"
+                cursor.execute(teachers_query)
+                teachers = cursor.fetchall()
+                cursor.close()
+                
+                teacher_options = {teacher[0]: teacher[1] for teacher in teachers}
+                teacher_id = st.selectbox("Teacher", options=list(teacher_options.keys()), format_func=lambda x: teacher_options[x])
+            except Exception as e:
+                st.error(f"Error fetching teachers: {str(e)}")
             submitted = st.form_submit_button("Submit Request")
             
             if submitted:
