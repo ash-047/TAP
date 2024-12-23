@@ -3,6 +3,6 @@ mysql-connector-python
 datetime
 json
 fpdf
-ollama
+groq
 streamlit-option-menu
 python-dotenv
