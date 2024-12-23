@@ -1,0 +1,8 @@
+streamlit
+mysql-connector-python
+datetime
+json
+fpdf
+ollama
+streamlit-option-menu
+python-dotenv
