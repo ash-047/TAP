@@ -1,4 +1,4 @@
-# TAP
+# Teaching Assistant Portal (TAP)
 
 The Teaching Assistant Portal is a web-based system that simplifies the management of TAs for academic institutions. It allows teachers to efficiently select, assign, and monitor TAs from a pool of eligible students. Teachers can track TA performance, while TAs log their work hours, aiding in transparency and accountability.
 
